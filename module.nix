@@ -43,6 +43,14 @@
       preStart = "mkdir -p /run/wrappers";
     };
     networking.useDHCP = false;
+    services.nscd.enableNsncd = false;
+    systemd.oomd.enable = false;
+    services.dbus.implementation = "dbus";
+
+    nix.settings = {
+      sandbox = false;
+      experimental-features = [ "nix-command" "flakes" ];
+    };
 
     podman-nixos.image = let
       toplevel = config.system.build.toplevel;
@@ -53,7 +61,7 @@
       copyToRoot = pkgs.runCommand "root" {} ''
         mkdir -p $out/{nix-support,sbin}
         echo ${toplevel} > $out/nix-support/propagated-build-inputs
-        cp ${toplevel}/init $out/sbin/init
+        cp ${toplevel}/{init,activate} $out/sbin
         cp ${info}/registration $out/nix-path-registration
       '';
     };

@@ -14,12 +14,8 @@
       modules = [
         self.nixosModules.default
         {
-          system.stateVersion = "25.05";
-          users.users.root.password = "nixos";
-          services.openssh = {
-            enable = true;
-            settings.PermitRootLogin = "yes";
-          };
+          system.stateVersion = "26.05";
+          services.getty.autologinUser = "root";
         }
       ];
     };

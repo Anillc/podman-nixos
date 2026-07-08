@@ -5,56 +5,29 @@ Run nixos in podman. There is an option `--systemd` of `podman run` to run syste
 # usage
 
 ```bash
-podman run -it -p 2222:22 docker.io/anillc/nixos
+podman run -it --name=nixos docker.io/anillc/nixos
+podman exec -it nixos /run/current-system/sw/bin/bash
 ```
 
-Then you can ssh into the container with password `nixos`:
+# NixOS module
 
-```bash
-ssh root@127.0.0.1 -p 2222
-```
-
-You can use tools like `deploy-rs` to deploy configurations to the container. Example configuration:
+You can import the NixOS module to build your own NixOS image. You can switch your configuration in the container or build a new image with `nix build .#nixosConfigurations.nixos.config.podman-nixos.image`. It's also possible to use deploy-rs to deploy your configuration when openssh is enabled.
 
 ```nix
 {
   inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
-  inputs.deploy.url = "github:serokell/deploy-rs";
   inputs.podman-nixos.url = "github:Anillc/podman-nixos";
   outputs = inputs@{
-    self, nixpkgs, flake-parts, deploy, podman-nixos,
+    self, nixpkgs, flake-parts, podman-nixos,
   }: flake-parts.lib.mkFlake { inherit inputs; } {
     systems = [ "x86_64-linux" ];
-    perSystem = { inputs', pkgs, ... }: {
-      devShells.default = pkgs.mkShell {
-        buildInputs = with pkgs; [];
-        nativeBuildInputs = with pkgs; [
-          inputs'.deploy.packages.default
-        ];
-      };
-    };
     flake.nixosConfigurations.nixos = nixpkgs.lib.nixosSystem {
       system = "x86_64-linux";
       modules = [
         podman-nixos.nixosModules.default
-        {
-          system.stateVersion = "25.05";
-          users.users.root.openssh.authorizedKeys.keys = [
-            "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIJqu43h92/UcQLf+E7AnUqmjjdGLkcazB9Z9nNRferqD"
-          ];
-          services.openssh.enable = true;
-        }
+        { system.stateVersion = "26.05"; }
       ];
-    };
-    flake.deploy.nodes.nixos = {
-      sshUser = "root";
-      hostname = "127.0.0.1";
-      sshOpts = [ "-p" "2222" ];
-      profiles.system.path = deploy.lib.x86_64-linux.activate.nixos
-        self.nixosConfigurations.nixos;
     };
   };
 }
 ```
-
-Then use `deploy -s .#nixos` to deploy the configuration to the container.
