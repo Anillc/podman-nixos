@@ -31,3 +31,59 @@ You can import the NixOS module to build your own NixOS image. You can switch yo
   };
 }
 ```
+
+# As base image
+
+```Dockerfile
+FROM anillc/nixos:latest
+
+# Run activate to create /bin/sh.
+RUN --mount=type=tmpfs,target=/run ["/sbin/activate"]
+
+RUN --mount=type=tmpfs,target=/run --mount=type=tmpfs,target=/tmp <<EOF
+    set -e
+
+    /sbin/activate && . /etc/profile
+    export NIX_REMOTE=local
+
+    nix-store --load-db < /nix-path-registration && rm /nix-path-registration
+    nix-env -p /nix/var/nix/profiles/system --set /run/current-system
+    nix-channel --add https://github.com/Anillc/podman-nixos/archive/master.tar.gz podman-nixos
+    nix-channel --update podman-nixos
+
+    # You can update the system configuration here.
+    # To use sudo, you need to pass `--tmpfs /run:exec,suid` to the `podman run` command.
+    mkdir -p /etc/nixos
+    cat > /etc/nixos/configuration.nix <<'    CONFIG'
+        { pkgs, ... }: {
+          imports = [ "${<podman-nixos>}/module.nix" ];
+          system.stateVersion = "26.05";
+          programs.nix-ld.enable = true;
+          environment.systemPackages = with pkgs; [ git ];
+          users.users.user = {
+            isNormalUser = true;
+            extraGroups = [ "wheel" ];
+          };
+          security.sudo.wheelNeedsPassword = false;
+          services.getty.autologinUser = "user";
+        }
+    CONFIG
+
+    nixos-rebuild boot -I nixos-config=/etc/nixos/configuration.nix
+    nix-collect-garbage -d
+EOF
+
+RUN --mount=type=tmpfs,target=/run --mount=type=tmpfs,target=/tmp <<EOF
+    set -e
+
+    /nix/var/nix/profiles/system/activate && . /etc/profile
+    export NIX_REMOTE=local
+
+    # Do some thing like caching your development environment here. For example:
+    nix develop nixpkgs#hello --command true
+EOF
+```
+
+# docker
+
+You can also use docker to run the image. It should work after you pass `--security-opt writable-cgroups=true --tmpfs /run:exec,suid` to the `docker run` command.
